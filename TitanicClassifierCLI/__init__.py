@@ -1,4 +1,4 @@
-# src/__init__.py
+# TitanicClassifierCLI/__init__.py
 from .data_processor import DataProcessor
 from .model_trainer import ModelTrainer
 from .evaluator import Evaluator
