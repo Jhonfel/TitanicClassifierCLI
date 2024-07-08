@@ -82,6 +82,23 @@ coverage run -m unittest discover tests
 coverage report -m
 coverage html  # generates a detailed HTML report
 
+###current coverage
+```
+Name                                     Stmts   Miss  Cover   Missing
+----------------------------------------------------------------------
+TitanicClassifierCLI/__init__.py             5      0   100%
+TitanicClassifierCLI/cli.py                149     23    85%   48-54, 108, 123-130, 205-207, 209-211, 218
+TitanicClassifierCLI/data_processor.py      74      7    91%   43, 75, 80-84
+TitanicClassifierCLI/evaluator.py           61      9    85%   43-49, 62, 82
+TitanicClassifierCLI/model_trainer.py       27      0   100%
+tests/test_cli.py                          108      6    94%   161-162, 203-205, 232
+tests/test_data_processor.py                28      1    96%   55
+tests/test_evaluator.py                     31      5    84%   28-29, 35-36, 39
+tests/test_model_trainer.py                 30      1    97%   44
+----------------------------------------------------------------------
+TOTAL                                      513     52    90%
+```
+
 ## 🚀 Deployment
 
 This project uses Docker for containerization and can be deployed using the following steps:
