@@ -14,52 +14,74 @@ class DataProcessor:
         self.passenger_ids = None
 
     def load_data(self):
+        print('loading data')
         self.data = pd.read_csv(self.filepath)
         if 'PassengerId' in self.data.columns:
             self.passenger_ids = self.data['PassengerId']
         return self.data
 
     def preprocess(self):
-        self.data = self.data.copy()
-
-        # Feature engineering
-        self.feature_engineering()
+        try:
+            print("Starting preprocessing...")
+            self.data = self.data.copy()
+            print(f"Data shape: {self.data.shape}")
+            print(f"Columns: {self.data.columns}")
     
-        # Define column types
-        numeric_features = ['Age', 'Fare', 'FamilySize']
-        categorical_features = ['Pclass', 'Sex', 'Embarked', 'Title']
+            # Feature engineering
+            print("Starting feature engineering...")
+            self.feature_engineering()
+            print("Feature engineering completed.")
+            print(f"Columns after feature engineering: {self.data.columns}")
+        
+            # Define column types
+            numeric_features = ['Age', 'Fare', 'FamilySize']
+            categorical_features = ['Pclass', 'Sex', 'Embarked', 'Title']
+        
+            # Check if all required features are present
+            missing_features = [f for f in numeric_features + categorical_features if f not in self.data.columns]
+            if missing_features:
+                raise ValueError(f"Missing features after feature engineering: {missing_features}")
     
-        # Create preprocessing pipelines
-        numeric_transformer = Pipeline(steps=[
-            ('imputer', SimpleImputer(strategy='median')),
-            ('scaler', StandardScaler())
-        ])
-    
-        categorical_transformer = Pipeline(steps=[
-            ('imputer', SimpleImputer(strategy='constant', fill_value='missing')),
-            ('onehot', OneHotEncoder(handle_unknown='ignore'))
-        ])
-    
-        # Combine preprocessing steps
-        self.preprocessor = ColumnTransformer(
-            transformers=[
-                ('num', numeric_transformer, numeric_features),
-                ('cat', categorical_transformer, categorical_features)
+            # Create preprocessing pipelines
+            numeric_transformer = Pipeline(steps=[
+                ('imputer', SimpleImputer(strategy='median')),
+                ('scaler', StandardScaler())
             ])
+        
+            categorical_transformer = Pipeline(steps=[
+                ('imputer', SimpleImputer(strategy='constant', fill_value='missing')),
+                ('onehot', OneHotEncoder(handle_unknown='ignore'))
+            ])
+        
+            # Combine preprocessing steps
+            self.preprocessor = ColumnTransformer(
+                transformers=[
+                    ('num', numeric_transformer, numeric_features),
+                    ('cat', categorical_transformer, categorical_features)
+                ])
     
-        # Fit and transform the data
-        if 'Survived' in self.data.columns:
-            X = self.data.drop('Survived', axis=1)
-            y = self.data['Survived']
-            X_transformed = self.preprocessor.fit_transform(X)
-            self.fitted_preprocessor = self.preprocessor
-            return X_transformed, y
-        else:
-            if self.fitted_preprocessor is None:
-                raise ValueError("Preprocessor has not been fitted. Call preprocess on training data first.")
-            X_transformed = self.fitted_preprocessor.transform(self.data)
-            return X_transformed
-
+            # Fit and transform the data
+            if 'Survived' in self.data.columns:
+                print("Processing training data...")
+                X = self.data.drop('Survived', axis=1)
+                y = self.data['Survived']
+                X_transformed = self.preprocessor.fit_transform(X)
+                self.fitted_preprocessor = self.preprocessor
+                print("Preprocessing completed successfully.")
+                return X_transformed, y
+            else:
+                print("Processing test data...")
+                if self.fitted_preprocessor is None:
+                    raise ValueError("Preprocessor has not been fitted. Call preprocess on training data first.")
+                X_transformed = self.fitted_preprocessor.transform(self.data)
+                print("Preprocessing completed successfully.")
+                return X_transformed
+    
+        except Exception as e:
+            print(f"Error in preprocessing: {str(e)}")
+            import traceback
+            traceback.print_exc()
+            return None
 
     def feature_engineering(self):
         # Extract titles from names
