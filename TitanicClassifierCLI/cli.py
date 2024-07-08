@@ -45,12 +45,15 @@ def prompt_for_path(path_type: str) -> str:
     Returns:
         str: The user-provided file path.
     """
-    while True:
+    attempts = 3  # Número máximo de intentos
+    for _ in range(attempts):
         user_input = click.prompt(f"Enter the path for the {path_type}", type=str)
-        if Path(user_input).exists() or path_type == 'output':
+        if path_type == 'output' or Path(user_input).exists():
             return user_input
-        logger.warning(f"The specified path does not exist. Please try again.")
+        click.echo(f"The specified path does not exist: {user_input}")
+    raise click.ClickException(f"Failed to provide a valid path for {path_type} after {attempts} attempts.")
 
+        
 @click.group()
 def cli():
     """Titanic Classifier CLI"""
@@ -96,11 +99,13 @@ def train(train_data: str, model_path: str) -> None:
         logger.info("Confusion matrix:")
         evaluator.print_confusion_matrix(y_val, model_trainer.predict(X_val))
         
-        # Perform cross-validation
-        cv_scores = cross_val_score(model_trainer.model, X, y, cv=5)
-        logger.info(f"Cross-validation scores: {cv_scores}")
-        logger.info(f"Mean cross-validation score: {cv_scores.mean()}")
-        
+        if len(X) >= 5:
+            # Realizar cross-validation solo si hay suficientes muestras
+            cv_scores = cross_val_score(model_trainer.model, X, y, cv=min(5, len(X)))
+            logger.info(f"Cross-validation scores: {cv_scores}")
+            logger.info(f"Mean cross-validation score: {cv_scores.mean()}")
+        else:
+            logger.warning("Not enough samples for cross-validation")
         # Compare with Logistic Regression
         log_reg = LogisticRegression(random_state=42)
         log_reg.fit(X_train, y_train)
@@ -112,11 +117,17 @@ def train(train_data: str, model_path: str) -> None:
         logger.info(f"Model trained and saved to {model_path}")
 
     except FileNotFoundError as e:
-        logger.error(f"File not found: {str(e)}")
-        raise click.Abort()
+        error_msg = f"File not found: {str(e)}"
+        logger.error(error_msg)
+        raise click.ClickException(error_msg)
+    except ValueError as e:
+        error_msg = f"Value error: {str(e)}"
+        logger.error(error_msg)
+        raise click.ClickException(error_msg)
     except Exception as e:
-        logger.error(f"An error occurred: {str(e)}")
-        raise click.Abort()
+        error_msg = f"An unexpected error occurred: {str(e)}"
+        logger.error(error_msg)
+        raise click.ClickException(error_msg)
 
 @cli.command()
 @click.option('--train-data', default='Data/train.csv', help='Path to training data')
@@ -126,6 +137,7 @@ def train(train_data: str, model_path: str) -> None:
 @click.option('--force-train', is_flag=True, help='Force training a new model')
 def predict(train_data: str, test_data: str, model_path: str, output: str, force_train: bool) -> None:
     try:
+        
         setup_environment(train_data, test_data, output, model_path)
         
         logger.info("Loading and preprocessing training data...")
@@ -179,19 +191,28 @@ def predict(train_data: str, test_data: str, model_path: str, output: str, force
         
         logger.info("Making predictions...")
         predictions = model_trainer.predict(X_test)
-        
+        logger.info(f"Length of predictions: {len(predictions)}")
+
         logger.info(f"Saving predictions to {output}")
         passenger_ids = test_processor.get_passenger_ids()
+        logger.info(f"Length of passenger_ids: {len(passenger_ids)}")
+
         submission = pd.DataFrame({'PassengerId': passenger_ids, 'Survived': predictions})
         submission.to_csv(output, index=False)
         logger.info("Predictions completed and saved.")
 
     except FileNotFoundError as e:
-        logger.error(f"File not found: {str(e)}")
-        raise click.Abort()
+        error_msg = f"File not found: {str(e)}"
+        logger.error(error_msg)
+        raise click.ClickException(error_msg)
+    except ValueError as e:
+        error_msg = f"Value error: {str(e)}"
+        logger.error(error_msg)
+        raise click.ClickException(error_msg)
     except Exception as e:
-        logger.error(f"An error occurred: {str(e)}")
-        raise click.Abort()
+        error_msg = f"An unexpected error occurred: {str(e)}"
+        logger.error(error_msg)
+        raise click.ClickException(error_msg)
 
 if __name__ == '__main__':
     cli()
