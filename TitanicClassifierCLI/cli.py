@@ -2,8 +2,7 @@ import click
 import logging
 from pathlib import Path
 from typing import Optional
-from sklearn.model_selection import train_test_split
-from sklearn.model_selection import cross_val_score
+from sklearn.model_selection import train_test_split, cross_val_score
 from sklearn.linear_model import LogisticRegression
 
 import pandas as pd
@@ -26,7 +25,7 @@ def setup_environment(train_data: Optional[str], test_data: Optional[str], outpu
         model_path (str): Path to the model file.
     """
     for path in [train_data, test_data]:
-        if not Path(path).exists():
+        if path and not Path(path).exists():
             raise FileNotFoundError(f"File not found: {path}")
     
     output_dir = Path(output).parent
@@ -35,8 +34,6 @@ def setup_environment(train_data: Optional[str], test_data: Optional[str], outpu
     # Ensure the models directory exists
     model_dir = Path(model_path).parent
     model_dir.mkdir(parents=True, exist_ok=True)
-
-
 
 def prompt_for_path(path_type: str) -> str:
     """
@@ -52,7 +49,7 @@ def prompt_for_path(path_type: str) -> str:
         user_input = click.prompt(f"Enter the path for the {path_type}", type=str)
         if Path(user_input).exists() or path_type == 'output':
             return user_input
-        click.echo(f"The specified path does not exist. Please try again.")
+        logger.warning(f"The specified path does not exist. Please try again.")
 
 @click.group()
 def cli():
@@ -65,62 +62,62 @@ def cli():
 def train(train_data: str, model_path: str) -> None:
     """Train the model, evaluate it, and save it."""
     try:
-        setup_environment(train_data, None, model_path)
+        setup_environment(train_data, None, model_path, model_path)
         
-        click.echo("Loading and preprocessing training data...")
+        logger.info("Loading and preprocessing training data...")
         data_processor = DataProcessor(train_data)
         train_data = data_processor.load_data()
         X, y = data_processor.preprocess()
         
-        click.echo(f"Shape of training data after preprocessing: {X.shape}")
-        click.echo(f"Feature names: {data_processor.get_feature_names()}")
+        logger.info(f"Shape of training data after preprocessing: {X.shape}")
+        logger.info(f"Feature names: {data_processor.get_feature_names()}")
         
         # Check class distribution
-        click.echo("Class distribution in the full dataset:")
-        click.echo(pd.Series(y).value_counts(normalize=True))
+        logger.info("Class distribution in the full dataset:")
+        logger.info(pd.Series(y).value_counts(normalize=True))
         
-        click.echo("Splitting data into train and validation sets...")
+        logger.info("Splitting data into train and validation sets...")
         X_train, X_val, y_train, y_val = train_test_split(X, y, test_size=0.2, random_state=42)
         
-        click.echo("Class distribution in the training set:")
-        click.echo(pd.Series(y_train).value_counts(normalize=True))
-        click.echo("Class distribution in the validation set:")
-        click.echo(pd.Series(y_val).value_counts(normalize=True))
+        logger.info("Class distribution in the training set:")
+        logger.info(pd.Series(y_train).value_counts(normalize=True))
+        logger.info("Class distribution in the validation set:")
+        logger.info(pd.Series(y_val).value_counts(normalize=True))
         
-        click.echo("Training model...")
+        logger.info("Training model...")
         model_trainer = ModelTrainer(model_path)
         model_trainer.train(X_train, y_train)
         
-        click.echo("Evaluating model on validation set...")
+        logger.info("Evaluating model on validation set...")
         evaluator = Evaluator(model_trainer.model)
         evaluator.evaluate(X_val, y_val)
         
         # Plot confusion matrix
-        click.echo("Confusion matrix:")
+        logger.info("Confusion matrix:")
         evaluator.print_confusion_matrix(y_val, model_trainer.predict(X_val))
         
         # Perform cross-validation
         cv_scores = cross_val_score(model_trainer.model, X, y, cv=5)
-        click.echo(f"Cross-validation scores: {cv_scores}")
-        click.echo(f"Mean cross-validation score: {cv_scores.mean()}")
+        logger.info(f"Cross-validation scores: {cv_scores}")
+        logger.info(f"Mean cross-validation score: {cv_scores.mean()}")
         
         # Compare with Logistic Regression
         log_reg = LogisticRegression(random_state=42)
         log_reg.fit(X_train, y_train)
-        click.echo("Metrics for Logistic Regression:")
+        logger.info("Metrics for Logistic Regression:")
         evaluator_log = Evaluator(log_reg)
         evaluator_log.evaluate(X_val, y_val)
         
         model_trainer.save_model()
-        click.echo(f"Model trained and saved to {model_path}")
+        logger.info(f"Model trained and saved to {model_path}")
 
     except FileNotFoundError as e:
-        click.echo(f"File not found: {str(e)}")
+        logger.error(f"File not found: {str(e)}")
         raise click.Abort()
     except Exception as e:
-        click.echo(f"An error occurred: {str(e)}")
+        logger.error(f"An error occurred: {str(e)}")
         raise click.Abort()
-    
+
 @cli.command()
 @click.option('--train-data', default='Data/train.csv', help='Path to training data')
 @click.option('--test-data', default='Data/test.csv', help='Path to test data')
@@ -131,69 +128,69 @@ def predict(train_data: str, test_data: str, model_path: str, output: str, force
     try:
         setup_environment(train_data, test_data, output, model_path)
         
-        click.echo("Loading and preprocessing training data...")
+        logger.info("Loading and preprocessing training data...")
         data_processor = DataProcessor(train_data)
         train_data = data_processor.load_data()
         X, y = data_processor.preprocess()
         
         model_trainer = ModelTrainer(model_path)
         if not model_trainer.load_model() or force_train:
-            click.echo("Training a new model...")
+            logger.info("Training a new model...")
             
-            click.echo(f"Shape of training data after preprocessing: {X.shape}")
-            click.echo(f"Feature names: {data_processor.get_feature_names()}")
+            logger.info(f"Shape of training data after preprocessing: {X.shape}")
+            logger.info(f"Feature names: {data_processor.get_feature_names()}")
             
             # Check class distribution
-            click.echo("Class distribution in the full dataset:")
-            click.echo(pd.Series(y).value_counts(normalize=True))
+            logger.info("Class distribution in the full dataset:")
+            logger.info(pd.Series(y).value_counts(normalize=True))
             
             # Split data for training and validation
             X_train, X_val, y_train, y_val = train_test_split(X, y, test_size=0.2, random_state=42)
             
-            click.echo("Class distribution in the training set:")
-            click.echo(pd.Series(y_train).value_counts(normalize=True))
-            click.echo("Class distribution in the validation set:")
-            click.echo(pd.Series(y_val).value_counts(normalize=True))
+            logger.info("Class distribution in the training set:")
+            logger.info(pd.Series(y_train).value_counts(normalize=True))
+            logger.info("Class distribution in the validation set:")
+            logger.info(pd.Series(y_val).value_counts(normalize=True))
             
             model_trainer.train(X_train, y_train)
             
-            click.echo("Evaluating model on validation set...")
+            logger.info("Evaluating model on validation set...")
             evaluator = Evaluator(model_trainer.model)
             evaluator.evaluate(X_val, y_val)
             
-            click.echo("Confusion matrix:")
+            logger.info("Confusion matrix:")
             evaluator.print_confusion_matrix(y_val, model_trainer.predict(X_val))
             
             if len(X) >= 5:  # Only perform cross-validation if there are enough samples
                 cv_scores = cross_val_score(model_trainer.model, X, y, cv=min(5, len(X)))
-                click.echo(f"Cross-validation scores: {cv_scores}")
-                click.echo(f"Mean cross-validation score: {cv_scores.mean()}")
+                logger.info(f"Cross-validation scores: {cv_scores}")
+                logger.info(f"Mean cross-validation score: {cv_scores.mean()}")
             
             model_trainer.save_model()
-            click.echo(f"Model trained and saved to {model_path}")
+            logger.info(f"Model trained and saved to {model_path}")
         else:
-            click.echo(f"Model loaded from {model_path}")
+            logger.info(f"Model loaded from {model_path}")
         
-        click.echo("Processing test data...")
+        logger.info("Processing test data...")
         test_processor = DataProcessor(test_data)
         test_data = test_processor.load_data()
         test_processor.fitted_preprocessor = data_processor.get_fitted_preprocessor()
         X_test = test_processor.preprocess()
         
-        click.echo("Making predictions...")
+        logger.info("Making predictions...")
         predictions = model_trainer.predict(X_test)
         
-        click.echo(f"Saving predictions to {output}")
+        logger.info(f"Saving predictions to {output}")
         passenger_ids = test_processor.get_passenger_ids()
         submission = pd.DataFrame({'PassengerId': passenger_ids, 'Survived': predictions})
         submission.to_csv(output, index=False)
-        click.echo("Predictions completed and saved.")
+        logger.info("Predictions completed and saved.")
 
     except FileNotFoundError as e:
-        click.echo(f"File not found: {str(e)}")
+        logger.error(f"File not found: {str(e)}")
         raise click.Abort()
     except Exception as e:
-        click.echo(f"An error occurred: {str(e)}")
+        logger.error(f"An error occurred: {str(e)}")
         raise click.Abort()
 
 if __name__ == '__main__':
