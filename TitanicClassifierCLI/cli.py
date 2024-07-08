@@ -15,7 +15,7 @@ from .evaluator import Evaluator
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
-def setup_environment(train_data: str, test_data: str, output: str) -> None:
+def setup_environment(train_data: Optional[str], test_data: Optional[str], output: str, model_path: str) -> None:
     """
     Set up the environment for the CLI.
 
@@ -23,6 +23,7 @@ def setup_environment(train_data: str, test_data: str, output: str) -> None:
         train_data (str): Path to the training data.
         test_data (str): Path to the test data.
         output (str): Path to the output file.
+        model_path (str): Path to the model file.
     """
     for path in [train_data, test_data]:
         if not Path(path).exists():
@@ -30,6 +31,12 @@ def setup_environment(train_data: str, test_data: str, output: str) -> None:
     
     output_dir = Path(output).parent
     output_dir.mkdir(parents=True, exist_ok=True)
+
+    # Ensure the models directory exists
+    model_dir = Path(model_path).parent
+    model_dir.mkdir(parents=True, exist_ok=True)
+
+
 
 def prompt_for_path(path_type: str) -> str:
     """
@@ -54,12 +61,11 @@ def cli():
 
 @cli.command()
 @click.option('--train-data', default='Data/train.csv', help='Path to training data')
-@click.option('--test-data', default='Data/test.csv', help='Path to test data')
-@click.option('--output', default='submission.csv', help='Path to output predictions')
-def predict(train_data: str, test_data: str, output: str) -> None:
-    """Train model and make predictions."""
+@click.option('--model-path', default='trained_model.joblib', help='Path to save the model')
+def train(train_data: str, model_path: str) -> None:
+    """Train the model, evaluate it, and save it."""
     try:
-        setup_environment(train_data, test_data, output)
+        setup_environment(train_data, None, model_path)
         
         click.echo("Loading and preprocessing training data...")
         data_processor = DataProcessor(train_data)
@@ -82,7 +88,7 @@ def predict(train_data: str, test_data: str, output: str) -> None:
         click.echo(pd.Series(y_val).value_counts(normalize=True))
         
         click.echo("Training model...")
-        model_trainer = ModelTrainer()
+        model_trainer = ModelTrainer(model_path)
         model_trainer.train(X_train, y_train)
         
         click.echo("Evaluating model on validation set...")
@@ -105,34 +111,90 @@ def predict(train_data: str, test_data: str, output: str) -> None:
         evaluator_log = Evaluator(log_reg)
         evaluator_log.evaluate(X_val, y_val)
         
-        click.echo("Processing test data and making predictions...")
+        model_trainer.save_model()
+        click.echo(f"Model trained and saved to {model_path}")
+
+    except FileNotFoundError as e:
+        click.echo(f"File not found: {str(e)}")
+        raise click.Abort()
+    except Exception as e:
+        click.echo(f"An error occurred: {str(e)}")
+        raise click.Abort()
+    
+@cli.command()
+@click.option('--train-data', default='Data/train.csv', help='Path to training data')
+@click.option('--test-data', default='Data/test.csv', help='Path to test data')
+@click.option('--model-path', default='models/trained_model.joblib', help='Path to load/save the model')
+@click.option('--output', default='submission.csv', help='Path to output predictions')
+@click.option('--force-train', is_flag=True, help='Force training a new model')
+def predict(train_data: str, test_data: str, model_path: str, output: str, force_train: bool) -> None:
+    try:
+        setup_environment(train_data, test_data, output, model_path)
+        
+        click.echo("Loading and preprocessing training data...")
+        data_processor = DataProcessor(train_data)
+        train_data = data_processor.load_data()
+        X, y = data_processor.preprocess()
+        
+        model_trainer = ModelTrainer(model_path)
+        if not model_trainer.load_model() or force_train:
+            click.echo("Training a new model...")
+            
+            click.echo(f"Shape of training data after preprocessing: {X.shape}")
+            click.echo(f"Feature names: {data_processor.get_feature_names()}")
+            
+            # Check class distribution
+            click.echo("Class distribution in the full dataset:")
+            click.echo(pd.Series(y).value_counts(normalize=True))
+            
+            # Split data for training and validation
+            X_train, X_val, y_train, y_val = train_test_split(X, y, test_size=0.2, random_state=42)
+            
+            click.echo("Class distribution in the training set:")
+            click.echo(pd.Series(y_train).value_counts(normalize=True))
+            click.echo("Class distribution in the validation set:")
+            click.echo(pd.Series(y_val).value_counts(normalize=True))
+            
+            model_trainer.train(X_train, y_train)
+            
+            click.echo("Evaluating model on validation set...")
+            evaluator = Evaluator(model_trainer.model)
+            evaluator.evaluate(X_val, y_val)
+            
+            click.echo("Confusion matrix:")
+            evaluator.print_confusion_matrix(y_val, model_trainer.predict(X_val))
+            
+            if len(X) >= 5:  # Only perform cross-validation if there are enough samples
+                cv_scores = cross_val_score(model_trainer.model, X, y, cv=min(5, len(X)))
+                click.echo(f"Cross-validation scores: {cv_scores}")
+                click.echo(f"Mean cross-validation score: {cv_scores.mean()}")
+            
+            model_trainer.save_model()
+            click.echo(f"Model trained and saved to {model_path}")
+        else:
+            click.echo(f"Model loaded from {model_path}")
+        
+        click.echo("Processing test data...")
         test_processor = DataProcessor(test_data)
         test_data = test_processor.load_data()
         test_processor.fitted_preprocessor = data_processor.get_fitted_preprocessor()
         X_test = test_processor.preprocess()
         
-        click.echo(f"Shape of test data after preprocessing: {X_test.shape}")
-        
-        if X_test.shape[1] != X_train.shape[1]:
-            click.echo(f"Warning: Number of features in test data ({X_test.shape[1]}) "
-                       f"does not match training data ({X_train.shape[1]})")
-        
+        click.echo("Making predictions...")
         predictions = model_trainer.predict(X_test)
         
         click.echo(f"Saving predictions to {output}")
         passenger_ids = test_processor.get_passenger_ids()
-        if passenger_ids is None:
-            click.echo("Warning: PassengerId not found in test data. Using index as PassengerId.")
-            passenger_ids = range(1, len(predictions) + 1)
-        
         submission = pd.DataFrame({'PassengerId': passenger_ids, 'Survived': predictions})
         submission.to_csv(output, index=False)
-        click.echo("Done!")
+        click.echo("Predictions completed and saved.")
 
+    except FileNotFoundError as e:
+        click.echo(f"File not found: {str(e)}")
+        raise click.Abort()
     except Exception as e:
         click.echo(f"An error occurred: {str(e)}")
-        raise
-
+        raise click.Abort()
 
 if __name__ == '__main__':
     cli()

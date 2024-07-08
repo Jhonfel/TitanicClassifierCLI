@@ -1,10 +1,10 @@
 import unittest
 import pandas as pd
+import numpy as np
 from TitanicClassifierCLI.data_processor import DataProcessor
 
 class TestDataProcessor(unittest.TestCase):
     def setUp(self):
-        # Create a test DataFrame
         self.test_data = pd.DataFrame({
             'PassengerId': [1, 2, 3],
             'Survived': [0, 1, 1],
@@ -22,21 +22,34 @@ class TestDataProcessor(unittest.TestCase):
         self.data_processor = DataProcessor('dummy_path')
         self.data_processor.data = self.test_data
 
-    def test_preprocess(self):
-        self.data_processor.preprocess()
+    def test_feature_engineering(self):
+        self.data_processor.feature_engineering()
         
+        # Check if new features were created
+        self.assertIn('Title', self.data_processor.data.columns)
+        self.assertIn('FamilySize', self.data_processor.data.columns)
+        self.assertIn('IsAlone', self.data_processor.data.columns)
+
         # Check if specified columns have been dropped
-        self.assertNotIn('Cabin', self.data_processor.data.columns)
-        self.assertNotIn('Fare', self.data_processor.data.columns)
-        self.assertNotIn('Ticket', self.data_processor.data.columns)
         self.assertNotIn('Name', self.data_processor.data.columns)
+        self.assertNotIn('Ticket', self.data_processor.data.columns)
+        self.assertNotIn('Cabin', self.data_processor.data.columns)
+        self.assertNotIn('PassengerId', self.data_processor.data.columns)
+        self.assertNotIn('SibSp', self.data_processor.data.columns)
+        self.assertNotIn('Parch', self.data_processor.data.columns)
 
-        # Check if categorical columns have been encoded
-        self.assertTrue(self.data_processor.data['Sex'].dtype != 'object')
-        self.assertTrue(self.data_processor.data['Embarked'].dtype != 'object')
+    def test_preprocess(self):
+        X, y = self.data_processor.preprocess()
+        
+        # Check if X is a numpy array
+        self.assertIsInstance(X, np.ndarray)
+        
+        # Check if y is a pandas Series
+        self.assertIsInstance(y, pd.Series)
 
-        # Check if there are no null values
-        self.assertTrue(self.data_processor.data.isnull().sum().sum() == 0)
+        # Check if the number of features is correct
+        expected_features = len(self.data_processor.get_feature_names())
+        self.assertEqual(X.shape[1], expected_features)
 
 if __name__ == '__main__':
     unittest.main()
