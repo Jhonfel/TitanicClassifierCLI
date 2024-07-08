@@ -29,7 +29,16 @@ class Evaluator:
             'recall': recall,
             'f1': f1
         }
-
+    
+    
+    def print_confusion_matrix(self, y_true, y_pred):
+        cm = confusion_matrix(y_true, y_pred)
+        print("Confusion Matrix:")
+        print("                 Predicted")
+        print("                 0    1")
+        print(f"Actual  0  |    {cm[0][0]:<4} {cm[0][1]:<4}|")
+        print(f"        1  |    {cm[1][0]:<4} {cm[1][1]:<4}|")
+        
     def plot_confusion_matrix(self, y_true, y_pred):
         cm = confusion_matrix(y_true, y_pred)
         plt.figure(figsize=(10,7))

@@ -3,6 +3,9 @@ import logging
 from pathlib import Path
 from typing import Optional
 from sklearn.model_selection import train_test_split
+from sklearn.model_selection import cross_val_score
+from sklearn.linear_model import LogisticRegression
+
 import pandas as pd
 from .data_processor import DataProcessor
 from .model_trainer import ModelTrainer
@@ -53,8 +56,8 @@ def cli():
 @click.option('--train-data', default='Data/train.csv', help='Path to training data')
 @click.option('--test-data', default='Data/test.csv', help='Path to test data')
 @click.option('--output', default='submission.csv', help='Path to output predictions')
-def predict(train_data, test_data, output):
-    """Train model and make predictions"""
+def predict(train_data: str, test_data: str, output: str) -> None:
+    """Train model and make predictions."""
     try:
         setup_environment(train_data, test_data, output)
         
@@ -63,12 +66,20 @@ def predict(train_data, test_data, output):
         train_data = data_processor.load_data()
         X, y = data_processor.preprocess()
         
-        # Debug information
         click.echo(f"Shape of training data after preprocessing: {X.shape}")
         click.echo(f"Feature names: {data_processor.get_feature_names()}")
         
+        # Check class distribution
+        click.echo("Class distribution in the full dataset:")
+        click.echo(pd.Series(y).value_counts(normalize=True))
+        
         click.echo("Splitting data into train and validation sets...")
         X_train, X_val, y_train, y_val = train_test_split(X, y, test_size=0.2, random_state=42)
+        
+        click.echo("Class distribution in the training set:")
+        click.echo(pd.Series(y_train).value_counts(normalize=True))
+        click.echo("Class distribution in the validation set:")
+        click.echo(pd.Series(y_val).value_counts(normalize=True))
         
         click.echo("Training model...")
         model_trainer = ModelTrainer()
@@ -78,13 +89,28 @@ def predict(train_data, test_data, output):
         evaluator = Evaluator(model_trainer.model)
         evaluator.evaluate(X_val, y_val)
         
+        # Plot confusion matrix
+        click.echo("Confusion matrix:")
+        evaluator.print_confusion_matrix(y_val, model_trainer.predict(X_val))
+        
+        # Perform cross-validation
+        cv_scores = cross_val_score(model_trainer.model, X, y, cv=5)
+        click.echo(f"Cross-validation scores: {cv_scores}")
+        click.echo(f"Mean cross-validation score: {cv_scores.mean()}")
+        
+        # Compare with Logistic Regression
+        log_reg = LogisticRegression(random_state=42)
+        log_reg.fit(X_train, y_train)
+        click.echo("Metrics for Logistic Regression:")
+        evaluator_log = Evaluator(log_reg)
+        evaluator_log.evaluate(X_val, y_val)
+        
         click.echo("Processing test data and making predictions...")
         test_processor = DataProcessor(test_data)
         test_data = test_processor.load_data()
         test_processor.fitted_preprocessor = data_processor.get_fitted_preprocessor()
         X_test = test_processor.preprocess()
         
-        # Debug information
         click.echo(f"Shape of test data after preprocessing: {X_test.shape}")
         
         if X_test.shape[1] != X_train.shape[1]:
@@ -102,11 +128,11 @@ def predict(train_data, test_data, output):
         submission = pd.DataFrame({'PassengerId': passenger_ids, 'Survived': predictions})
         submission.to_csv(output, index=False)
         click.echo("Done!")
-        
+
     except Exception as e:
         click.echo(f"An error occurred: {str(e)}")
         raise
 
-    
+
 if __name__ == '__main__':
     cli()
