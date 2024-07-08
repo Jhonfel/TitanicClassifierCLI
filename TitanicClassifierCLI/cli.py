@@ -3,7 +3,7 @@ import logging
 from pathlib import Path
 from typing import Optional
 from sklearn.model_selection import train_test_split
-
+import pandas as pd
 from .data_processor import DataProcessor
 from .model_trainer import ModelTrainer
 from .evaluator import Evaluator
@@ -53,58 +53,60 @@ def cli():
 @click.option('--train-data', default='Data/train.csv', help='Path to training data')
 @click.option('--test-data', default='Data/test.csv', help='Path to test data')
 @click.option('--output', default='submission.csv', help='Path to output predictions')
-def predict(train_data: str, test_data: str, output: str) -> None:
-    """
-    Train model and make predictions.
-
-    Args:
-        train_data (str): Path to the training data.
-        test_data (str): Path to the test data.
-        output (str): Path to save the predictions.
-    """
+def predict(train_data, test_data, output):
+    """Train model and make predictions"""
     try:
-        # Check if default paths exist, if not, prompt for input
-        if not Path(train_data).exists():
-            train_data = prompt_for_path('train data')
-        if not Path(test_data).exists():
-            test_data = prompt_for_path('test data')
-        if not Path(output).parent.exists():
-            output = prompt_for_path('output')
-
         setup_environment(train_data, test_data, output)
-
-        logger.info("Loading and preprocessing training data...")
+        
+        click.echo("Loading and preprocessing training data...")
         data_processor = DataProcessor(train_data)
-        data = data_processor.load_data()
-        data_processor.preprocess()
-
-        logger.info("Splitting data into train and validation sets...")
-        X = data.drop('Survived', axis=1)
-        y = data['Survived']
+        train_data = data_processor.load_data()
+        X, y = data_processor.preprocess()
+        
+        # Debug information
+        click.echo(f"Shape of training data after preprocessing: {X.shape}")
+        click.echo(f"Feature names: {data_processor.get_feature_names()}")
+        
+        click.echo("Splitting data into train and validation sets...")
         X_train, X_val, y_train, y_val = train_test_split(X, y, test_size=0.2, random_state=42)
-
-        logger.info("Training model...")
+        
+        click.echo("Training model...")
         model_trainer = ModelTrainer()
         model_trainer.train(X_train, y_train)
-
-        logger.info("Evaluating model on validation set...")
+        
+        click.echo("Evaluating model on validation set...")
         evaluator = Evaluator(model_trainer.model)
         evaluator.evaluate(X_val, y_val)
-
-        logger.info("Processing test data and making predictions...")
+        
+        click.echo("Processing test data and making predictions...")
         test_processor = DataProcessor(test_data)
         test_data = test_processor.load_data()
-        test_processor.preprocess()
-        predictions = model_trainer.predict(test_data)
-
-        logger.info(f"Saving predictions to {output}")
-        test_data['Survived'] = predictions
-        test_data[['PassengerId', 'Survived']].to_csv(output, index=False)
-        logger.info("Done!")
-
+        test_processor.fitted_preprocessor = data_processor.get_fitted_preprocessor()
+        X_test = test_processor.preprocess()
+        
+        # Debug information
+        click.echo(f"Shape of test data after preprocessing: {X_test.shape}")
+        
+        if X_test.shape[1] != X_train.shape[1]:
+            click.echo(f"Warning: Number of features in test data ({X_test.shape[1]}) "
+                       f"does not match training data ({X_train.shape[1]})")
+        
+        predictions = model_trainer.predict(X_test)
+        
+        click.echo(f"Saving predictions to {output}")
+        passenger_ids = test_processor.get_passenger_ids()
+        if passenger_ids is None:
+            click.echo("Warning: PassengerId not found in test data. Using index as PassengerId.")
+            passenger_ids = range(1, len(predictions) + 1)
+        
+        submission = pd.DataFrame({'PassengerId': passenger_ids, 'Survived': predictions})
+        submission.to_csv(output, index=False)
+        click.echo("Done!")
+        
     except Exception as e:
-        logger.error(f"An error occurred: {str(e)}")
+        click.echo(f"An error occurred: {str(e)}")
         raise
 
+    
 if __name__ == '__main__':
     cli()
