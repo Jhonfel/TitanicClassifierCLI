@@ -82,10 +82,14 @@ coverage html  # generates a detailed HTML report
 This project uses Docker for containerization and can be deployed using the following steps:
 
 1. Build the Docker image:
+```
 docker build -t titanic-classifier-cli .
+```
 
-2. Run the Docker container:
+1. Run the Docker container:
+```
 docker run -v /path/to/your/data:/app/data titanic-classifier-cli predict --train-data /app/data/train.csv --test-data /app/data/test.csv --output /app/data/predictions.csv
+```
 
 ---
 
