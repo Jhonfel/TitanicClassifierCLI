@@ -32,6 +32,11 @@ https://github.com/Jhonfel/TitanicClassifierCLI.git
 ```
 pip install -e .
 ```
+3. Alternatively, you can install the package directly from PyPI:
+```
+pip install TitanicClassifierCLI
+```
+
 
 ## 🚀 Usage
 
@@ -86,7 +91,7 @@ This project uses Docker for containerization and can be deployed using the foll
 docker build -t titanic-classifier-cli .
 ```
 
-1. Run the Docker container:
+2. Run the Docker container:
 ```
 docker run -v /path/to/your/data:/app/data titanic-classifier-cli predict --train-data /app/data/train.csv --test-data /app/data/test.csv --output /app/data/predictions.csv
 ```
