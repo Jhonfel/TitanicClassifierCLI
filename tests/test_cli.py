@@ -3,6 +3,7 @@ from click.testing import CliRunner
 from TitanicClassifierCLI.cli import cli, predict
 import os
 import pandas as pd
+from unittest.mock import patch
 
 class TestCLI(unittest.TestCase):
     def setUp(self):
@@ -50,18 +51,30 @@ class TestCLI(unittest.TestCase):
         self.assertIn("Saving predictions to test_output.csv", result.output)
         self.assertTrue(os.path.exists('test_output.csv'))
 
-    def test_cli_predict_missing_file(self):
-        result = self.runner.invoke(cli, ['predict', 
-                                          '--train-data', 'nonexistent.csv',
-                                          '--test-data', 'test_test.csv',
-                                          '--output', 'test_output.csv'])
-        self.assertNotEqual(result.exit_code, 0)
-        self.assertIn("File not found: nonexistent.csv", result.output)
+    @patch('TitanicClassifierCLI.cli.prompt_for_path')
+    def test_cli_predict_missing_file_with_prompt(self, mock_prompt):
+        mock_prompt.side_effect = ['test_train.csv', 'test_test.csv', 'test_output.csv']
+        result = self.runner.invoke(cli, ['predict'])
+        self.assertEqual(result.exit_code, 0)
+        self.assertIn("Loading and preprocessing training data...", result.output)
+        self.assertIn("Training model...", result.output)
+        self.assertIn("Evaluating model on validation set...", result.output)
+        self.assertIn("Processing test data and making predictions...", result.output)
+        self.assertIn("Saving predictions to test_output.csv", result.output)
+        self.assertTrue(os.path.exists('test_output.csv'))
+        self.assertEqual(mock_prompt.call_count, 3)
 
     def test_cli_predict_invalid_option(self):
         result = self.runner.invoke(cli, ['predict', '--invalid-option'])
         self.assertNotEqual(result.exit_code, 0)
         self.assertIn("Error: No such option: --invalid-option", result.output)
+
+    @patch('TitanicClassifierCLI.cli.prompt_for_path')
+    def test_cli_predict_missing_file_with_invalid_prompt(self, mock_prompt):
+        mock_prompt.side_effect = ['nonexistent.csv', 'test_test.csv', 'test_output.csv']
+        result = self.runner.invoke(cli, ['predict'])
+        self.assertNotEqual(result.exit_code, 0)
+        self.assertIn("File not found: nonexistent.csv", result.output)
 
 if __name__ == '__main__':
     unittest.main()

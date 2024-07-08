@@ -28,6 +28,22 @@ def setup_environment(train_data: str, test_data: str, output: str) -> None:
     output_dir = Path(output).parent
     output_dir.mkdir(parents=True, exist_ok=True)
 
+def prompt_for_path(path_type: str) -> str:
+    """
+    Prompt the user for a file path.
+
+    Args:
+        path_type (str): The type of path (e.g., 'train data', 'test data', 'output').
+
+    Returns:
+        str: The user-provided file path.
+    """
+    while True:
+        user_input = click.prompt(f"Enter the path for the {path_type}", type=str)
+        if Path(user_input).exists() or path_type == 'output':
+            return user_input
+        click.echo(f"The specified path does not exist. Please try again.")
+
 @click.group()
 def cli():
     """Titanic Classifier CLI"""
@@ -47,6 +63,14 @@ def predict(train_data: str, test_data: str, output: str) -> None:
         output (str): Path to save the predictions.
     """
     try:
+        # Check if default paths exist, if not, prompt for input
+        if not Path(train_data).exists():
+            train_data = prompt_for_path('train data')
+        if not Path(test_data).exists():
+            test_data = prompt_for_path('test data')
+        if not Path(output).parent.exists():
+            output = prompt_for_path('output')
+
         setup_environment(train_data, test_data, output)
 
         logger.info("Loading and preprocessing training data...")

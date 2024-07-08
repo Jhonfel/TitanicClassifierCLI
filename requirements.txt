@@ -1,0 +1,8 @@
+click
+numpy
+pandas
+scikit-learn
+matplotlib
+seaborn
+pytest
+coverage
