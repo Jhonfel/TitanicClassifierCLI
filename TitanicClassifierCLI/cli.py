@@ -8,7 +8,7 @@ from .data_processor import DataProcessor
 from .model_trainer import ModelTrainer
 from .evaluator import Evaluator
 
-# Configurar logging
+# Config logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 

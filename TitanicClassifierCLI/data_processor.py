@@ -17,7 +17,6 @@ class DataProcessor:
         self.encode_categorical()
         self.handle_missing_values()
 
-
     def handle_missing_values(self):
         imputer = SimpleImputer(strategy='mean')
         self.data.iloc[:, :] = imputer.fit_transform(self.data)
