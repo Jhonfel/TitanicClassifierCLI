@@ -82,7 +82,7 @@ coverage run -m unittest discover tests
 coverage report -m
 coverage html  # generates a detailed HTML report
 
-###current coverage
+### current coverage
 ```
 Name                                     Stmts   Miss  Cover   Missing
 ----------------------------------------------------------------------
